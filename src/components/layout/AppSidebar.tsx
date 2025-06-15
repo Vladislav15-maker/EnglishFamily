@@ -8,14 +8,14 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Home, Users, BookOpen, CheckSquare, Award, BarChart3 } from 'lucide-react';
 
-interface NavItem {
+export interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
   roles: ('teacher' | 'student')[];
 }
 
-const navItems: NavItem[] = [
+export const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Главная', icon: Home, roles: ['teacher', 'student'] },
   { href: '/dashboard/units', label: 'Юниты', icon: BookOpen, roles: ['student'] },
   { href: '/dashboard/student/offline-tests', label: 'Оффлайн Тесты', icon: Award, roles: ['student'] },
@@ -28,9 +28,12 @@ export default function AppSidebar() {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  if (!user) return null;
+  if (!user) return null; // Should not happen if DashboardLayout protects routes
 
+  // This component is now only for desktop view, mobile is handled in AppHeader
+  // The filtering logic for navItems is now also in AppHeader for the mobile sheet.
   const filteredNavItems = navItems.filter(item => item.roles.includes(user.role));
+
 
   return (
     <aside className="fixed top-16 left-0 z-30 hidden h-[calc(100vh-4rem)] w-64 shrink-0 border-r md:sticky md:block bg-card text-card-foreground">
