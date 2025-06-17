@@ -14,55 +14,74 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        console.log('[NextAuth] Authorize function called with credentials:', credentials?.username);
         if (!credentials?.username || !credentials?.password) {
+          console.error('[NextAuth] Missing username or password');
           return null;
         }
 
-        const user = await getUserByUsernameForAuth(credentials.username);
+        try {
+          const user = await getUserByUsernameForAuth(credentials.username);
+          console.log('[NextAuth] User fetched from DB:', user?.username, 'Role:', user?.role);
 
-        if (user && user.password_hash && bcrypt.compareSync(credentials.password, user.password_hash)) {
-          // Return an object that will be stored in the JWT
-          return {
-            id: user.id,
-            name: user.name,
-            username: user.username,
-            role: user.role,
-            // email: user.email // if you have email in your UserForAuth type
-          };
-        } else {
-          // If you return null then an error will be displayed advising the user to check their details.
-          return null;
+          if (user && user.password_hash) {
+            console.log('[NextAuth] Comparing password for user:', user.username);
+            const isPasswordCorrect = bcrypt.compareSync(credentials.password, user.password_hash);
+            console.log('[NextAuth] Password correct:', isPasswordCorrect);
+
+            if (isPasswordCorrect) {
+              console.log('[NextAuth] Authentication successful for:', user.username);
+              return {
+                id: user.id,
+                name: user.name,
+                username: user.username,
+                role: user.role,
+              };
+            } else {
+              console.log('[NextAuth] Incorrect password for user:', user.username);
+              return null;
+            }
+          } else {
+            console.log('[NextAuth] User not found or password_hash missing for:', credentials.username);
+            return null;
+          }
+        } catch (error) {
+          console.error('[NextAuth] Error in authorize function:', error);
+          // Выбрасываем ошибку, чтобы NextAuth обработал ее как серверную ошибку
+          // Это может помочь отобразить более конкретную ошибку или залогировать ее правильно.
+          throw new Error('Server error during authorization.');
         }
       }
     })
   ],
   session: {
-    strategy: 'jwt', // Using JSON Web Tokens for session strategy
+    strategy: 'jwt',
   },
   callbacks: {
     async jwt({ token, user }) {
-      // Persist the user id and role to the token right after signin
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role; // Cast user to any if role is not directly on User type from next-auth
+        token.role = (user as any).role;
         token.username = (user as any).username;
+        console.log('[NextAuth] JWT callback, user present:', user.username, 'Token role:', token.role);
       }
       return token;
     },
     async session({ session, token }) {
-      // Send properties to the client, like an access_token and user id from a provider.
       if (session.user) {
         (session.user as any).id = token.id as string;
         (session.user as any).role = token.role as ('teacher' | 'student');
         (session.user as any).username = token.username as string;
+        console.log('[NextAuth] Session callback, session user:', (session.user as any).username, 'Role:', (session.user as any).role);
       }
       return session;
     }
   },
   pages: {
-    signIn: '/', // Redirect users to / (login page) if they need to sign in
+    signIn: '/',
   },
-  secret: process.env.NEXTAUTH_SECRET, // A secret to sign and encrypt tokens
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development', // Включаем debug логи для разработки
 };
 
 const handler = NextAuth(authOptions);

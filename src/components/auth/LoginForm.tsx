@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-// import Link from 'next/link'; // Link больше не нужен для регистрации
+// import Link from 'next/link'; // Ссылка на регистрацию больше не нужна
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, LogIn } from 'lucide-react'; // UserPlus удален
+import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 export default function LoginForm() {
   const [username, setUsername] = useState('');
@@ -24,9 +24,11 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    console.log('[LoginForm] Attempting login for user:', username);
 
     try {
       const result = await login({ username, password });
+      console.log('[LoginForm] Login result:', result);
 
       if (result && !result.error) {
         toast({
@@ -34,20 +36,21 @@ export default function LoginForm() {
           description: `Добро пожаловать!`,
           variant: 'default',
         });
-        router.push('/dashboard');
-        router.refresh();
+        router.push('/dashboard'); // Перенаправляем на дашборд
+        router.refresh(); // Обновляем страницу, чтобы AuthContext подхватил сессию
       } else {
         toast({
           title: 'Ошибка входа',
           description: result?.error || 'Неверное имя пользователя или пароль.',
           variant: 'destructive',
         });
+        console.error('[LoginForm] Login failed:', result?.error);
       }
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("[LoginForm] Login submission error:", error);
       toast({
         title: 'Ошибка входа',
-        description: 'Произошла непредвиденная ошибка.',
+        description: 'Произошла непредвиденная ошибка на клиенте.',
         variant: 'destructive',
       });
     }
@@ -74,7 +77,7 @@ export default function LoginForm() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                placeholder="например, Vladislav"
+                placeholder="например, vladislav_teacher"
                 className="text-base"
                 autoComplete="username"
               />
@@ -109,7 +112,12 @@ export default function LoginForm() {
             </Button>
           </form>
         </CardContent>
-        {/* Удален блок CardFooter со ссылкой на регистрацию */}
+        {/* <CardFooter className="flex flex-col items-center space-y-2 pt-4">
+          <p className="text-sm text-muted-foreground">Нет аккаунта?</p>
+          <Button variant="outline" className="w-full" asChild>
+            <Link href="/register"> <UserPlus className="mr-2 h-4 w-4" /> Зарегистрироваться </Link>
+          </Button>
+        </CardFooter> */}
       </Card>
     </div>
   );
