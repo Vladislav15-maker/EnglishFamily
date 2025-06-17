@@ -1,55 +1,64 @@
+
 'use client';
+import { SessionProvider, useSession, signIn, signOut } from 'next-auth/react';
 import type { AuthenticatedUser } from '@/lib/types';
 import type React from 'react';
-import { createContext, useContext, useState, useEffect }
-from 'react';
+import { createContext, useContext } from 'react';
 
 interface AuthContextType {
   user: AuthenticatedUser | null;
   isLoading: boolean;
-  login: (userData: AuthenticatedUser) => void;
-  logout: () => void;
+  login: (credentials: Record<string, unknown>) => Promise<any>; // signIn from NextAuth
+  logout: () => void; // signOut from NextAuth
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USER_STORAGE_KEY = 'englishcourse_user';
+interface AuthProviderInternalProps {
+  children: React.ReactNode;
+}
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthenticatedUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+function AuthProviderInternal({ children }: AuthProviderInternalProps) {
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
 
-  useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (error) {
-      console.error("Failed to load user from localStorage", error);
-      localStorage.removeItem(USER_STORAGE_KEY);
-    }
-    setIsLoading(false);
-  }, []);
+  // Adapt user from NextAuth session
+  let adaptedUser: AuthenticatedUser | null = null;
+  if (session && session.user) {
+    const sessionUser = session.user as any; // Cast to any to access custom properties like id and role
+    adaptedUser = {
+      id: sessionUser.id,
+      username: sessionUser.username || sessionUser.name || '', // Use username if available
+      name: sessionUser.name || sessionUser.username || 'User',
+      role: sessionUser.role || 'student', // Default to 'student' if role is not set
+      email: sessionUser.email,
+    };
+  }
 
-  const login = (userData: AuthenticatedUser) => {
-    setUser(userData);
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
+  const loginFn = async (credentials: Record<string, unknown>) => {
+    // Call NextAuth's signIn. It returns a promise.
+    // The redirect behavior is handled by NextAuth based on pages config or callbackUrl.
+    return signIn('credentials', { redirect: false, ...credentials });
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem(USER_STORAGE_KEY);
-    // Potentially redirect to login page or home
-    if (typeof window !== 'undefined') {
-        window.location.href = '/';
-    }
+  const logoutFn = () => {
+    // Callback URL can be specified to redirect after sign out
+    signOut({ callbackUrl: '/' }); 
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user: adaptedUser, isLoading, login: loginFn, logout: logoutFn }}>
       {children}
     </AuthContext.Provider>
+  );
+}
+
+// The main AuthProvider now wraps children in SessionProvider from NextAuth
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionProvider>
+      <AuthProviderInternal>{children}</AuthProviderInternal>
+    </SessionProvider>
   );
 }
 

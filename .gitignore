@@ -9,53 +9,11 @@
 # Local Environment Variables
 .env
 .env*.local
-!.env.example
+.env.*.local
+!/.env.example
+!/.env.production.template
 
-# Production
-/dist
-/build
-/.next/
-/out/
-
-# SSR cache directory
-.next/cache
-
-# Next.js build outputs
-.next
-out
-
-# Next.js static
-public/static
-
-# Temporary files
-*.swp
-*~
-*.bak
-*.tmp
-
-# System files
-.DS_Store
-Thumbs.db
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-*.sublime-project
-vscode.env
-# VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.history
-
-# Log files
+# Temporary files, logs, and caches
 logs
 *.log
 npm-debug.log*
@@ -63,100 +21,47 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+pidlog.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+node_reporter_folder
 
-# Firebase
-firebase-debug.log
-*.firebase.*.log
-*.firebase.json
-firebase.json
-database-debug.log
+# Build output
+dist
+dist-*
+.next/
+out/
+build/
+.vercel/
+.sst/
+.output
 
-# Coverage directory used by tools like istanbul
+# IDEs and Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
+.idea
+*.project
+*.DS_Store
+*.orig
+
+# Test results
 coverage
-nyc_output
+*.lcov
 
-# Sourcemaps
-*.map
-
-# Optional eslint cache
-.eslintcache
-
-# dotenv environment variables file
-.env
-.env.development.local
-.env.test.local
-.env.production.local
+# Next.js specific
+.next
+out
 
 # TypeScript cache
 *.tsbuildinfo
 
-# Docusaurus output
-.docusaurus
-
-# Next-gen
-next-env.d.ts
-
-# Compiled output
-/dist
-/lib
-/out
-/build
-/coverage
-/.nyc_output
-/.cache
-/.next
-
-# Firebase emulators
-firebase-export-*
-.firebase/emulators
-
-# Mac files
-.DS_Store
-
-# Windows thumbnail cache files
-Thumbs.db
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-
-# Optional npm cache directory
-.npm
-
-# Optional eslintrc cache
+# Misc
 .eslintcache
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarnclean
-
-# mkcert
-cert.pem
-key.pem
-rootCA.pem
-rootCA-key.pem
-
-# Build results
-.next/
-out/
-
-# Typescript build info
-*.tsbuildinfo
-
-# Firebase
-*.firebase.json
+*.swp
+*.bak
+dump.rdb
+.firebase
 firebase-debug.log
-database-debug.log
-
-# Netlify
-.netlify
-
-# dotenv environment variables files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local

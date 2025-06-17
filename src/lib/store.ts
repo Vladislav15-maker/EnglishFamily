@@ -1,129 +1,262 @@
-// This file mocks a database for user data, progress, and scores.
-// Data is persisted in localStorage.
-import type { User, StudentRoundProgress, OfflineTestScore } from './types';
 
-// Initial users with plain text passwords for mock purposes.
-// In a real app, passwords should be securely hashed.
-const initialUsers: User[] = [
-  { id: 'teacher-vladislav', username: 'Vladislav', password: 'Vladislav15', role: 'teacher', name: 'Ермилов Владислав' },
-  { id: 'student-oksana', username: 'Oksana', password: 'Oksana25', role: 'student', name: 'Юрченко Оксана' },
-  { id: 'student-alexander', username: 'Alexander', password: 'Alexander23', role: 'student', name: 'Ермилов Александр' },
-];
+import { sql } from '@vercel/postgres';
+import bcrypt from 'bcryptjs';
+import type { User, StudentRoundProgress, OfflineTestScore, UserForAuth } from './types';
 
-interface AppData {
-  users: User[];
-  studentProgress: StudentRoundProgress[];
-  offlineScores: OfflineTestScore[];
+// Function to fetch user details for NextAuth.js authorization
+export async function getUserByUsernameForAuth(username: string): Promise<UserForAuth | null> {
+  try {
+    const result = await sql`
+      SELECT id, username, password_hash, role, name, email FROM users WHERE username = ${username};
+    `;
+    if (result.rows.length === 0) {
+      return null;
+    }
+    // Ensure the returned object matches the UserForAuth type
+    const user = result.rows[0];
+    return {
+      id: user.id,
+      username: user.username,
+      password_hash: user.password_hash,
+      role: user.role as 'teacher' | 'student',
+      name: user.name,
+      email: user.email,
+      created_at: user.created_at // if you have this column and type
+    };
+  } catch (error) {
+    console.error('Failed to fetch user by username for auth:', error);
+    // It's important to return null or throw an error that NextAuth can handle
+    return null;
+  }
 }
 
-const APP_DATA_STORAGE_KEY = 'englishcourse_app_data';
-
-// Function to get the initial state of the store
-const getInitialStore = (): AppData => ({
-  users: initialUsers.map(u => ({ ...u })), // Create deep copies to avoid modifying initialUsers
-  studentProgress: [],
-  offlineScores: [],
-});
-
-// Function to load the store from localStorage
-const loadStoreFromLocalStorage = (): AppData => {
-  if (typeof window !== 'undefined') {
-    try {
-      const serializedStore = localStorage.getItem(APP_DATA_STORAGE_KEY);
-      if (serializedStore) {
-        const parsedStore = JSON.parse(serializedStore) as AppData;
-        // Basic validation to ensure the loaded data has the expected structure
-        if (parsedStore.users && parsedStore.studentProgress && parsedStore.offlineScores) {
-          return parsedStore;
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load store from localStorage, using initial data:", error);
-      // If loading fails, fall through to return the initial store
-    }
+// Function to create a new user in the database (called from /api/register)
+export async function createUserInDb(userData: {
+  name: string;
+  username: string;
+  passwordPlain: string;
+  role: 'teacher' | 'student';
+  email?: string; // Optional email
+}): Promise<UserForAuth | null> {
+  const saltRounds = 10; // Cost factor for hashing
+  const passwordHash = await bcrypt.hash(userData.passwordPlain, saltRounds);
+  try {
+    // Insert new user into the database
+    const result = await sql`
+      INSERT INTO users (username, password_hash, name, role, email)
+      VALUES (${userData.username}, ${passwordHash}, ${userData.name}, ${userData.role}, ${userData.email || null})
+      RETURNING id, username, name, role, email, password_hash, created_at; 
+    `;
+    // Return the newly created user (excluding password_hash in actual response if not needed by caller)
+    return result.rows[0] as UserForAuth;
+  } catch (error) {
+    console.error('Failed to create user in DB:', error);
+    // Rethrow the error so the API route can handle specific DB errors (like unique constraint violation)
+    throw error; 
   }
-  return getInitialStore();
-};
-
-// Initialize store: load from localStorage or use initial data
-let store: AppData = loadStoreFromLocalStorage();
-
-// Function to save the current store state to localStorage
-const saveStoreToLocalStorage = (): void => {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(APP_DATA_STORAGE_KEY, JSON.stringify(store));
-    } catch (error) {
-      console.error("Failed to save store to localStorage:", error);
-    }
-  }
-};
-
-
-// --- User Functions ---
-export async function findUserByUsername(username: string): Promise<User | undefined> {
-  // Ensure store.users is used, which might have been loaded from localStorage
-  return store.users.find(user => user.username === username);
 }
 
+// Function to find a user by ID (general purpose)
 export async function findUserById(userId: string): Promise<User | undefined> {
-  return store.users.find(user => user.id === userId);
+   try {
+    const result = await sql`SELECT id, username, role, name, email FROM users WHERE id = ${userId};`;
+    if (result.rows.length === 0) return undefined;
+    const user = result.rows[0];
+    return {
+        id: user.id,
+        username: user.username,
+        role: user.role as 'teacher' | 'student',
+        name: user.name,
+        email: user.email
+    };
+  } catch (error) {
+    console.error('Failed to find user by id:', error);
+    return undefined;
+  }
 }
 
+// Function to get all students (for teacher dashboard)
 export async function getAllStudents(): Promise<User[]> {
-  return store.users.filter(user => user.role === 'student');
+  try {
+    const result = await sql`SELECT id, username, role, name, email FROM users WHERE role = 'student';`;
+    return result.rows.map(row => ({
+        id: row.id,
+        username: row.username,
+        role: row.role as 'teacher' | 'student', // Ensure correct type casting
+        name: row.name,
+        email: row.email
+    }));
+  } catch (error) {
+    console.error('Failed to get all students:', error);
+    return [];
+  }
 }
 
 // --- Progress Functions ---
+// These will need to be updated to use Vercel Postgres once tables are created
+
 export async function getStudentRoundProgress(studentId: string, unitId: string, roundId: string): Promise<StudentRoundProgress | undefined> {
-  return store.studentProgress.find(
-    p => p.studentId === studentId && p.unitId === unitId && p.roundId === roundId
-  );
+  // Placeholder - to be implemented with Vercel Postgres
+  console.warn(`getStudentRoundProgress for ${studentId}, ${unitId}, ${roundId} not implemented with DB yet.`);
+  try {
+    const result = await sql<Omit<StudentRoundProgress, 'studentId' | 'unitId' | 'roundId'> & {student_id: string, unit_id: string, round_id: string}>`
+      SELECT student_id, unit_id, round_id, score, attempts, completed, timestamp
+      FROM student_progress
+      WHERE student_id = ${studentId} AND unit_id = ${unitId} AND round_id = ${roundId};
+    `;
+    if (result.rows.length === 0) return undefined;
+    const row = result.rows[0];
+    return {
+        studentId: row.student_id,
+        unitId: row.unit_id,
+        roundId: row.round_id,
+        score: row.score,
+        attempts: row.attempts, // Already JSONB, should be fine
+        completed: row.completed,
+        timestamp: Number(row.timestamp) 
+    };
+  } catch (error) {
+    console.error('Failed to get student round progress:', error);
+    return undefined;
+  }
 }
 
 export async function getAllStudentProgress(studentId: string): Promise<StudentRoundProgress[]> {
-  // If studentId is empty string, return all progress for all students (used in teacher overview)
-  if (studentId === '') {
-    return [...store.studentProgress];
+  // Placeholder - to be implemented with Vercel Postgres
+  console.warn(`getAllStudentProgress for ${studentId} not implemented with DB yet.`);
+   try {
+    let result;
+    // If studentId is an empty string, fetch for all students (for teacher overview)
+    // Otherwise, fetch for the specific studentId
+    if (studentId === '') { 
+      result = await sql<Omit<StudentRoundProgress, 'studentId' | 'unitId' | 'roundId'> & {student_id: string, unit_id: string, round_id: string}>`
+        SELECT student_id, unit_id, round_id, score, attempts, completed, timestamp
+        FROM student_progress;
+      `;
+    } else {
+      result = await sql<Omit<StudentRoundProgress, 'studentId' | 'unitId' | 'roundId'> & {student_id: string, unit_id: string, round_id: string}>`
+        SELECT student_id, unit_id, round_id, score, attempts, completed, timestamp
+        FROM student_progress WHERE student_id = ${studentId};
+      `;
+    }
+    return result.rows.map(row => ({
+        studentId: row.student_id,
+        unitId: row.unit_id,
+        roundId: row.round_id,
+        score: row.score,
+        attempts: row.attempts, // Already JSONB
+        completed: row.completed,
+        timestamp: Number(row.timestamp)
+    }));
+  } catch (error) {
+    console.error('Failed to get all student progress:', error);
+    return [];
   }
-  return store.studentProgress.filter(p => p.studentId === studentId);
 }
 
 
 export async function saveStudentRoundProgress(progress: StudentRoundProgress): Promise<void> {
-  const existingIndex = store.studentProgress.findIndex(
-    p => p.studentId === progress.studentId && p.unitId === progress.unitId && p.roundId === progress.roundId
-  );
-  if (existingIndex > -1) {
-    store.studentProgress[existingIndex] = progress;
-  } else {
-    store.studentProgress.push(progress);
+  // Placeholder - to be implemented with Vercel Postgres
+  console.warn(`saveStudentRoundProgress for ${progress.studentId} not implemented with DB yet.`);
+  try {
+    // Ensure timestamp is a number (milliseconds since epoch) for consistent storage
+    const timestampToSave = typeof progress.timestamp === 'number' ? progress.timestamp : new Date(progress.timestamp).getTime();
+
+    await sql`
+      INSERT INTO student_progress (student_id, unit_id, round_id, score, attempts, completed, timestamp)
+      VALUES (${progress.studentId}, ${progress.unitId}, ${progress.roundId}, ${progress.score}, ${JSON.stringify(progress.attempts)}, ${progress.completed}, ${timestampToSave})
+      ON CONFLICT (student_id, unit_id, round_id)
+      DO UPDATE SET
+        score = EXCLUDED.score,
+        attempts = EXCLUDED.attempts,
+        completed = EXCLUDED.completed,
+        timestamp = EXCLUDED.timestamp;
+    `;
+  } catch (error) {
+    console.error('Failed to save student round progress:', error);
+    throw error;
   }
-  saveStoreToLocalStorage(); // Save changes
 }
 
-// --- Offline Score Functions ---
+
+// --- Offline Test Score Functions ---
+// These will need to be updated to use Vercel Postgres once tables are created
+
 export async function getOfflineScoresForStudent(studentId: string): Promise<OfflineTestScore[]> {
-  return store.offlineScores.filter(score => score.studentId === studentId);
+  // Placeholder - to be implemented with Vercel Postgres
+  console.warn(`getOfflineScoresForStudent for ${studentId} not implemented with DB yet.`);
+   try {
+    const result = await sql<Omit<OfflineTestScore, 'studentId' | 'teacherId'> & {student_id: string, teacher_id: string}>`
+      SELECT id, student_id, teacher_id, score, notes, date
+      FROM offline_scores WHERE student_id = ${studentId} ORDER BY date DESC;
+    `;
+    return result.rows.map(row => ({
+        id: row.id,
+        studentId: row.student_id,
+        teacherId: row.teacher_id,
+        score: row.score as 2 | 3 | 4 | 5,
+        notes: row.notes,
+        date: row.date // Already a string from DB (TIMESTAMPTZ)
+    }));
+  } catch (error) {
+    console.error('Failed to get offline scores for student:', error);
+    return [];
+  }
 }
 
 export async function getAllOfflineScores(): Promise<OfflineTestScore[]> {
-  return [...store.offlineScores];
+  // Placeholder - to be implemented with Vercel Postgres
+  console.warn(`getAllOfflineScores not implemented with DB yet.`);
+  try {
+    const result = await sql<Omit<OfflineTestScore, 'studentId' | 'teacherId'> & {student_id: string, teacher_id: string}>`
+      SELECT id, student_id, teacher_id, score, notes, date
+      FROM offline_scores ORDER BY date DESC;
+    `;
+    return result.rows.map(row => ({
+        id: row.id,
+        studentId: row.student_id,
+        teacherId: row.teacher_id,
+        score: row.score as 2 | 3 | 4 | 5,
+        notes: row.notes,
+        date: row.date
+    }));
+  } catch (error) {
+    console.error('Failed to get all offline scores:', error);
+    return [];
+  }
 }
 
-export async function addOfflineScore(score: Omit<OfflineTestScore, 'id' | 'date'>): Promise<OfflineTestScore> {
-  const newScore: OfflineTestScore = {
-    ...score,
-    id: `offline-${Date.now()}-${Math.random().toString(36).substring(2,7)}`,
-    date: new Date().toISOString(),
-  };
-  store.offlineScores.push(newScore);
-  saveStoreToLocalStorage(); // Save changes
-  return newScore;
+export async function addOfflineScore(scoreData: Omit<OfflineTestScore, 'id' | 'date'>): Promise<OfflineTestScore> {
+  // Placeholder - to be implemented with Vercel Postgres
+  console.warn(`addOfflineScore for student ${scoreData.studentId} not implemented with DB yet.`);
+  const currentDate = new Date().toISOString(); // Store date as ISO string
+  try {
+    const result = await sql`
+      INSERT INTO offline_scores (student_id, teacher_id, score, notes, date)
+      VALUES (${scoreData.studentId}, ${scoreData.teacherId}, ${scoreData.score}, ${scoreData.notes || null}, ${currentDate})
+      RETURNING id, student_id, teacher_id, score, notes, date;
+    `;
+    const row = result.rows[0];
+    return {
+        id: row.id,
+        studentId: row.student_id,
+        teacherId: row.teacher_id,
+        score: row.score as 2 | 3 | 4 | 5,
+        notes: row.notes,
+        date: row.date
+    };
+  } catch (error) {
+    console.error('Failed to add offline score:', error);
+    throw error;
+  }
 }
 
-// Helper to reset store for testing or demonstration
+
+// Mock reset function, as localStorage is no longer the primary store
+// In a real DB scenario, reset would involve TRUNCATE or DELETE operations (use with caution)
 export function resetStore() {
-  store = getInitialStore(); // Reset in-memory store to initial state
-  saveStoreToLocalStorage(); // Persist the reset (initial) state to localStorage
+  console.warn("resetStore is a no-op when using a persistent database like Vercel Postgres.");
+  // If you had any in-memory caches or states managed here that aren't DB-related,
+  // you could reset them. But for DB data, this function should not delete it
+  // without explicit, careful consideration.
 }
