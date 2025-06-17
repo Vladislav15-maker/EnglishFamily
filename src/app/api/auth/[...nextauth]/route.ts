@@ -32,18 +32,24 @@ export const authOptions: NextAuthOptions = {
 
             // --- ПРЯМОЙ ТЕСТ BCRYPT ---
             const testPassword = "password123";
-            const testHashFromLog = "$2a$10$SgG7.6qF6U.GzF0hA6uHn.X0bXvL4Q8/6Qj5B0xO2KzGq/rS.9LqK"; // Хеш из ваших логов
+            // Хеш из ваших логов, который должен соответствовать "password123"
+            const testHashFromLog = "$2a$10$SgG7.6qF6U.GzF0hA6uHn.X0bXvL4Q8/6Qj5B0xO2KzGq/rS.9LqK";
             let hardcodedTestResult = false;
             try {
                 hardcodedTestResult = bcrypt.compareSync(testPassword, testHashFromLog);
             } catch (e: any) {
-                console.error('[NextAuth] Error during hardcoded bcrypt.compareSync:', e.message);
+                console.error('[NextAuth] Error during hardcoded bcrypt.compareSync:', e.message, e.stack);
             }
             console.log(`[NextAuth] HARDCODED BCRYPT TEST ("${testPassword}" vs "${testHashFromLog}"): ${hardcodedTestResult}`);
             // --- КОНЕЦ ПРЯМОГО ТЕСТА BCRYPT ---
 
             console.log('[NextAuth] Comparing password for user:', user.username);
-            const isPasswordCorrect = bcrypt.compareSync(inputPassword, user.password_hash);
+            let isPasswordCorrect = false;
+            try {
+                isPasswordCorrect = bcrypt.compareSync(inputPassword, user.password_hash);
+            } catch (e: any) {
+                console.error('[NextAuth] Error during user password bcrypt.compareSync:', e.message, e.stack);
+            }
             console.log('[NextAuth] Password correct (using inputPassword and user.password_hash):', isPasswordCorrect);
 
             if (isPasswordCorrect) {
