@@ -1,6 +1,6 @@
 
 import { sql } from '@vercel/postgres';
-import bcrypt from 'bcryptjs';
+// import bcrypt from 'bcryptjs'; // Hashing is done on user creation, not here. Comparison in NextAuth.
 import type { User, StudentRoundProgress, OfflineTestScore, UserForAuth } from './types';
 
 export async function getUserByUsernameForAuth(username: string): Promise<UserForAuth | null> {
@@ -14,9 +14,11 @@ export async function getUserByUsernameForAuth(username: string): Promise<UserFo
       return null;
     }
     const user = result.rows[0];
-    console.log('[Store] User found in DB:', user.username, 'Role:', user.role);
+    // Важно: id должен быть строкой для NextAuth
+    const userIdAsString = typeof user.id === 'string' ? user.id : String(user.id);
+    console.log('[Store] User found in DB:', user.username, 'Password hash from DB:', `"${user.password_hash}"`, 'Role:', user.role, 'ID:', userIdAsString);
     return {
-      id: user.id,
+      id: userIdAsString,
       username: user.username,
       password_hash: user.password_hash,
       role: user.role as 'teacher' | 'student',
@@ -26,25 +28,53 @@ export async function getUserByUsernameForAuth(username: string): Promise<UserFo
     };
   } catch (error) {
     console.error('[Store] Failed to fetch user by username for auth:', error);
-    // Вместо возврата null, можно выбросить ошибку, чтобы она была поймана выше.
-    // Это поможет лучше диагностировать проблемы с БД.
     throw new Error(`Database error fetching user ${username}: ${(error as Error).message}`);
   }
 }
 
-// Эта функция больше не нужна, так как регистрация удаляется.
-// Если она где-то вызывается, это нужно будет убрать.
-// export async function createUserInDb(userData: {
-//   name: string;
-//   username: string;
-//   passwordPlain: string;
-//   role: 'teacher' | 'student';
-//   email?: string;
-// }): Promise<UserForAuth | null> {
-//   console.warn('[Store] createUserInDb is deprecated as registration is removed.');
-//   return null;
-// }
-
+// Эта функция больше не нужна, так как регистрация удалена.
+// Оставляем ее закомментированной или удаляем, чтобы избежать случайного вызова.
+/*
+export async function createUserInDb(userData: {
+  name: string;
+  username: string;
+  passwordPlain: string;
+  role: 'teacher' | 'student';
+  email?: string;
+}): Promise<UserForAuth | null> {
+  console.warn('[Store] createUserInDb is deprecated and should not be called as registration is removed.');
+  // const saltRounds = 10;
+  // const passwordHash = await bcrypt.hash(userData.passwordPlain, saltRounds);
+  // console.log(`[Store] Hashed password for ${userData.username}: ${passwordHash}`);
+  // try {
+  //   const result = await sql`
+  //     INSERT INTO users (name, username, password_hash, role, email)
+  //     VALUES (${userData.name}, ${userData.username}, ${passwordHash}, ${userData.role}, ${userData.email || null})
+  //     RETURNING id, username, password_hash, role, name, email, created_at;
+  //   `;
+  //   if (result.rows.length === 0) return null;
+  //   const newUser = result.rows[0];
+  //   return {
+  //     id: newUser.id,
+  //     username: newUser.username,
+  //     password_hash: newUser.password_hash,
+  //     role: newUser.role as 'teacher' | 'student',
+  //     name: newUser.name,
+  //     email: newUser.email,
+  //     created_at: newUser.created_at
+  //   };
+  // } catch (error) {
+  //   console.error('[Store] Failed to create user in DB:', error);
+  //   // Проверяем на ошибку уникальности constraint (например, username или email уже существует)
+  //   if ((error as any).code === '23505') { // PostgreSQL unique_violation
+  //       // Можно выбросить специфическую ошибку или вернуть null/маркер
+  //       console.error('[Store] Unique constraint violation:', (error as any).constraint_name);
+  //   }
+  //   return null; // Или throw error;
+  // }
+  return null;
+}
+*/
 
 export async function findUserById(userId: string): Promise<User | undefined> {
    console.log('[Store] findUserById called for ID:', userId);
@@ -55,8 +85,10 @@ export async function findUserById(userId: string): Promise<User | undefined> {
       return undefined;
     }
     const user = result.rows[0];
+    // Важно: id должен быть строкой
+    const userIdAsString = typeof user.id === 'string' ? user.id : String(user.id);
     return {
-        id: user.id,
+        id: userIdAsString,
         username: user.username,
         role: user.role as 'teacher' | 'student',
         name: user.name,
@@ -73,7 +105,7 @@ export async function getAllStudents(): Promise<User[]> {
   try {
     const result = await sql`SELECT id, username, role, name, email FROM users WHERE role = 'student';`;
     return result.rows.map(row => ({
-        id: row.id,
+        id: typeof row.id === 'string' ? row.id : String(row.id),
         username: row.username,
         role: row.role as 'teacher' | 'student',
         name: row.name,
@@ -100,9 +132,9 @@ export async function getStudentRoundProgress(studentId: string, unitId: string,
         unitId: row.unit_id,
         roundId: row.round_id,
         score: row.score,
-        attempts: row.attempts,
+        attempts: row.attempts, // JSONB приходит как объект/массив
         completed: row.completed,
-        timestamp: Number(row.timestamp) 
+        timestamp: Number(row.timestamp)
     };
   } catch (error) {
     console.error('[Store] Failed to get student round progress:', error);
@@ -110,11 +142,11 @@ export async function getStudentRoundProgress(studentId: string, unitId: string,
   }
 }
 
-export async function getAllStudentProgress(studentId: string): Promise<StudentRoundProgress[]> {
-  console.log(`[Store] getAllStudentProgress called for studentId: '${studentId}' (empty means all)`);
+export async function getAllStudentProgress(studentIdFilter: string): Promise<StudentRoundProgress[]> {
+  console.log(`[Store] getAllStudentProgress called for studentIdFilter: '${studentIdFilter}' (empty means all)`);
    try {
     let result;
-    if (studentId === '') { 
+    if (studentIdFilter === '' || !studentIdFilter) {
       result = await sql<Omit<StudentRoundProgress, 'studentId' | 'unitId' | 'roundId'> & {student_id: string, unit_id: string, round_id: string}>`
         SELECT student_id, unit_id, round_id, score, attempts, completed, timestamp
         FROM student_progress;
@@ -122,7 +154,7 @@ export async function getAllStudentProgress(studentId: string): Promise<StudentR
     } else {
       result = await sql<Omit<StudentRoundProgress, 'studentId' | 'unitId' | 'roundId'> & {student_id: string, unit_id: string, round_id: string}>`
         SELECT student_id, unit_id, round_id, score, attempts, completed, timestamp
-        FROM student_progress WHERE student_id = ${studentId};
+        FROM student_progress WHERE student_id = ${studentIdFilter};
       `;
     }
     return result.rows.map(row => ({
@@ -130,7 +162,7 @@ export async function getAllStudentProgress(studentId: string): Promise<StudentR
         unitId: row.unit_id,
         roundId: row.round_id,
         score: row.score,
-        attempts: row.attempts,
+        attempts: row.attempts, // JSONB приходит как объект/массив
         completed: row.completed,
         timestamp: Number(row.timestamp)
     }));
@@ -145,9 +177,10 @@ export async function saveStudentRoundProgress(progress: StudentRoundProgress): 
   console.log(`[Store] saveStudentRoundProgress for student ${progress.studentId}, unit ${progress.unitId}, round ${progress.roundId}`);
   try {
     const timestampToSave = typeof progress.timestamp === 'number' ? progress.timestamp : new Date(progress.timestamp).getTime();
+    const attemptsJson = JSON.stringify(progress.attempts);
     await sql`
       INSERT INTO student_progress (student_id, unit_id, round_id, score, attempts, completed, timestamp)
-      VALUES (${progress.studentId}, ${progress.unitId}, ${progress.roundId}, ${progress.score}, ${JSON.stringify(progress.attempts)}, ${progress.completed}, ${timestampToSave})
+      VALUES (${progress.studentId}, ${progress.unitId}, ${progress.roundId}, ${progress.score}, ${attemptsJson}, ${progress.completed}, ${timestampToSave})
       ON CONFLICT (student_id, unit_id, round_id)
       DO UPDATE SET
         score = EXCLUDED.score,
@@ -170,12 +203,12 @@ export async function getOfflineScoresForStudent(studentId: string): Promise<Off
       FROM offline_scores WHERE student_id = ${studentId} ORDER BY date DESC;
     `;
     return result.rows.map(row => ({
-        id: row.id,
+        id: typeof row.id === 'string' ? row.id : String(row.id),
         studentId: row.student_id,
         teacherId: row.teacher_id,
         score: row.score as 2 | 3 | 4 | 5,
         notes: row.notes,
-        date: row.date
+        date: row.date // Предполагается, что date уже строка (TIMESTAMPTZ Postgres -> string)
     }));
   } catch (error) {
     console.error('[Store] Failed to get offline scores for student:', error);
@@ -191,7 +224,7 @@ export async function getAllOfflineScores(): Promise<OfflineTestScore[]> {
       FROM offline_scores ORDER BY date DESC;
     `;
     return result.rows.map(row => ({
-        id: row.id,
+        id: typeof row.id === 'string' ? row.id : String(row.id),
         studentId: row.student_id,
         teacherId: row.teacher_id,
         score: row.score as 2 | 3 | 4 | 5,
@@ -215,7 +248,7 @@ export async function addOfflineScore(scoreData: Omit<OfflineTestScore, 'id' | '
     `;
     const row = result.rows[0];
     return {
-        id: row.id,
+        id: typeof row.id === 'string' ? row.id : String(row.id),
         studentId: row.student_id,
         teacherId: row.teacher_id,
         score: row.score as 2 | 3 | 4 | 5,
@@ -228,6 +261,7 @@ export async function addOfflineScore(scoreData: Omit<OfflineTestScore, 'id' | '
   }
 }
 
+// Эта функция не нужна для работы с постоянной базой данных.
 export function resetStore() {
   console.warn("[Store] resetStore is a no-op when using a persistent database.");
 }
