@@ -1,4 +1,3 @@
-
 import NextAuth, { type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { getUserByUsernameForAuth } from '@/lib/store';
@@ -20,20 +19,22 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const inputPassword = credentials.password.trim(); // Добавим trim на всякий случай
+        const inputPassword = credentials.password.trim(); 
 
         try {
           const user = await getUserByUsernameForAuth(credentials.username);
           console.log('[NextAuth] User fetched from DB for authorize:', user?.username, 'Role:', user?.role);
 
           if (user && user.password_hash) {
-            console.log('[NextAuth] Credentials Password being compared (trimmed):', `"${inputPassword}"`);
-            console.log('[NextAuth] User Password Hash from DB:', `"${user.password_hash}"`);
+            console.log('[NextAuth] Credentials Password for comparison (trimmed):', `"${inputPassword}"`, `(type: ${typeof inputPassword}, length: ${inputPassword.length})`);
+            console.log('[NextAuth] User Password Hash from DB:', `"${user.password_hash}"`, `(type: ${typeof user.password_hash}, length: ${user.password_hash.length})`);
 
             // --- ПРЯМОЙ ТЕСТ BCRYPT ---
             const testPassword = "password123";
-            // Хеш из ваших логов, который должен соответствовать "password123"
             const testHashFromLog = "$2a$10$SgG7.6qF6U.GzF0hA6uHn.X0bXvL4Q8/6Qj5B0xO2KzGq/rS.9LqK";
+            console.log('[NextAuth] HARDCODED TEST - Test Password:', `"${testPassword}"`, `(type: ${typeof testPassword}, length: ${testPassword.length})`);
+            console.log('[NextAuth] HARDCODED TEST - Test Hash:', `"${testHashFromLog}"`, `(type: ${typeof testHashFromLog}, length: ${testHashFromLog.length})`);
+            
             let hardcodedTestResult = false;
             try {
                 hardcodedTestResult = bcrypt.compareSync(testPassword, testHashFromLog);
