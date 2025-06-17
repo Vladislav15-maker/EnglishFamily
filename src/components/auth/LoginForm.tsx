@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+// import Link from 'next/link'; // Link больше не нужен для регистрации
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, LogIn } from 'lucide-react'; // UserPlus удален
 
 export default function LoginForm() {
   const [username, setUsername] = useState('');
@@ -18,7 +18,7 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { login } = useAuth(); // login from AuthContext now uses NextAuth's signIn
+  const { login } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,24 +26,17 @@ export default function LoginForm() {
     setIsLoading(true);
 
     try {
-      // login function from AuthContext now calls NextAuth's signIn
       const result = await login({ username, password });
 
       if (result && !result.error) {
-        // Successful login, NextAuth handles session creation.
-        // AuthContext will update with the new session.
-        // We can redirect or refresh to update UI based on new auth state.
         toast({
           title: 'Успешный вход',
           description: `Добро пожаловать!`,
           variant: 'default',
         });
-        // router.push('/dashboard') is typically handled by NextAuth redirect or by DashboardLayout logic
-        // Forcing a refresh can help ensure layout and context pick up new session state
-        router.push('/dashboard'); 
-        router.refresh(); // Or rely on DashboardLayout to redirect based on auth state
+        router.push('/dashboard');
+        router.refresh();
       } else {
-        // Login failed (e.g., wrong credentials)
         toast({
           title: 'Ошибка входа',
           description: result?.error || 'Неверное имя пользователя или пароль.',
@@ -51,8 +44,6 @@ export default function LoginForm() {
         });
       }
     } catch (error) {
-      // This catch block might not be reached if signIn handles all errors
-      // and returns them in the result object.
       console.error("Login error:", error);
       toast({
         title: 'Ошибка входа',
@@ -118,17 +109,7 @@ export default function LoginForm() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col items-center space-y-2 pt-4">
-            <p className="text-sm text-muted-foreground">
-                Нет аккаунта?
-            </p>
-            <Button variant="outline" className="w-full" asChild>
-                <Link href="/register">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Зарегистрироваться
-                </Link>
-            </Button>
-        </CardFooter>
+        {/* Удален блок CardFooter со ссылкой на регистрацию */}
       </Card>
     </div>
   );
