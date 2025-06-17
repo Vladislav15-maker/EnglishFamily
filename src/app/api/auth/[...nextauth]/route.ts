@@ -17,30 +17,42 @@ export const authOptions: NextAuthOptions = {
         console.log('[NextAuth] Authorize function called with credentials:', credentials?.username);
         if (!credentials?.username || !credentials?.password) {
           console.error('[NextAuth] Missing username or password');
-          return null; // Важно возвращать null при ошибке
+          return null;
         }
+
+        const inputPassword = credentials.password.trim(); // Добавим trim на всякий случай
 
         try {
           const user = await getUserByUsernameForAuth(credentials.username);
           console.log('[NextAuth] User fetched from DB for authorize:', user?.username, 'Role:', user?.role);
 
           if (user && user.password_hash) {
-            console.log('[NextAuth] Credentials Password being compared:', `"${credentials.password}"`);
+            console.log('[NextAuth] Credentials Password being compared (trimmed):', `"${inputPassword}"`);
             console.log('[NextAuth] User Password Hash from DB:', `"${user.password_hash}"`);
-            console.log('[NextAuth] Comparing password for user:', user.username);
 
-            const isPasswordCorrect = bcrypt.compareSync(credentials.password, user.password_hash);
-            console.log('[NextAuth] Password correct:', isPasswordCorrect);
+            // --- ПРЯМОЙ ТЕСТ BCRYPT ---
+            const testPassword = "password123";
+            const testHashFromLog = "$2a$10$SgG7.6qF6U.GzF0hA6uHn.X0bXvL4Q8/6Qj5B0xO2KzGq/rS.9LqK"; // Хеш из ваших логов
+            let hardcodedTestResult = false;
+            try {
+                hardcodedTestResult = bcrypt.compareSync(testPassword, testHashFromLog);
+            } catch (e: any) {
+                console.error('[NextAuth] Error during hardcoded bcrypt.compareSync:', e.message);
+            }
+            console.log(`[NextAuth] HARDCODED BCRYPT TEST ("${testPassword}" vs "${testHashFromLog}"): ${hardcodedTestResult}`);
+            // --- КОНЕЦ ПРЯМОГО ТЕСТА BCRYPT ---
+
+            console.log('[NextAuth] Comparing password for user:', user.username);
+            const isPasswordCorrect = bcrypt.compareSync(inputPassword, user.password_hash);
+            console.log('[NextAuth] Password correct (using inputPassword and user.password_hash):', isPasswordCorrect);
 
             if (isPasswordCorrect) {
               console.log('[NextAuth] Authentication successful for:', user.username);
-              // Возвращаем объект пользователя, который будет сохранен в токене
               return {
-                id: user.id, // Убедитесь, что id это строка
+                id: user.id,
                 name: user.name,
                 username: user.username,
                 role: user.role,
-                // email: user.email, // если email есть и нужен
               };
             } else {
               console.log('[NextAuth] Incorrect password for user:', user.username);
@@ -52,9 +64,7 @@ export const authOptions: NextAuthOptions = {
           }
         } catch (error) {
           console.error('[NextAuth] Error in authorize function:', error);
-          // Можно выбросить ошибку или вернуть null
-          // throw new Error('Server error during authorization.');
-          return null; // Безопаснее вернуть null, чтобы NextAuth обработал это как CredentialsSignin
+          return null;
         }
       }
     })
@@ -64,30 +74,26 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user }) {
-      // user объект передается только при первом входе после успешной authorize
       if (user) {
-        token.id = user.id; // user.id уже должен быть строкой из authorize
-        token.role = (user as any).role; // (user as any) чтобы NextAuth не ругался на кастомные поля
+        token.id = user.id;
+        token.role = (user as any).role;
         token.username = (user as any).username;
         console.log('[NextAuth] JWT callback, user present:', (user as any).username, 'Token role:', token.role);
       }
       return token;
     },
     async session({ session, token }) {
-      // token - это то, что вернул jwt callback
       if (session.user) {
         (session.user as any).id = token.id as string;
         (session.user as any).role = token.role as ('teacher' | 'student');
         (session.user as any).username = token.username as string;
-        // (session.user as any).email = token.email as string; // если email есть
         console.log('[NextAuth] Session callback, session user:', (session.user as any).username, 'Role:', (session.user as any).role);
       }
       return session;
     }
   },
   pages: {
-    signIn: '/', // Redirect users to the root page for sign-in
-    // error: '/auth/error', // (optional) custom error page
+    signIn: '/',
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development',
