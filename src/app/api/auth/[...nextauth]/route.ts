@@ -1,3 +1,4 @@
+
 import NextAuth, { type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { getUserByUsernameForAuth } from '@/lib/store';
@@ -31,7 +32,7 @@ export const authOptions: NextAuthOptions = {
 
             // --- ПРЯМОЙ ТЕСТ BCRYPT ---
             const testPassword = "password123";
-            const testHashFromLog = "$2a$10$SgG7.6qF6U.GzF0hA6uHn.X0bXvL4Q8/6Qj5B0xO2KzGq/rS.9LqK";
+            const testHashFromLog = "$2a$10$SgG7.6qF6U.GzF0hA6uHn.X0bXvL4Q8/6Qj5B0xO2KzGq/rS.9LqK"; // Хеш для "password123"
             console.log('[NextAuth] HARDCODED TEST - Test Password:', `"${testPassword}"`, `(type: ${typeof testPassword}, length: ${testPassword.length})`);
             console.log('[NextAuth] HARDCODED TEST - Test Hash:', `"${testHashFromLog}"`, `(type: ${typeof testHashFromLog}, length: ${testHashFromLog.length})`);
             
@@ -47,6 +48,7 @@ export const authOptions: NextAuthOptions = {
             console.log('[NextAuth] Comparing password for user:', user.username);
             let isPasswordCorrect = false;
             try {
+                // Сравниваем введенный пароль с хешем из БД
                 isPasswordCorrect = bcrypt.compareSync(inputPassword, user.password_hash);
             } catch (e: any) {
                 console.error('[NextAuth] Error during user password bcrypt.compareSync:', e.message, e.stack);
@@ -63,6 +65,10 @@ export const authOptions: NextAuthOptions = {
               };
             } else {
               console.log('[NextAuth] Incorrect password for user:', user.username);
+              // Если хардкодный тест проходит, а этот нет, значит проблема в том, что хеш в БД для ЭТОГО пользователя не тот
+              if (hardcodedTestResult === true) {
+                console.error(`[NextAuth] CRITICAL: Hardcoded test passed, but comparison for user ${user.username} failed. This means the hash for this user in the DB: ${user.password_hash} DOES NOT match 'password123'. Ensure it's set to ${testHashFromLog}`);
+              }
               return null;
             }
           } else {
@@ -100,7 +106,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
   pages: {
-    signIn: '/',
+    signIn: '/', // Указываем NextAuth, что наша главная страница и есть страница входа
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development',
